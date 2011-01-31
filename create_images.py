@@ -3,6 +3,53 @@
 import sys
 import os
 import mapnik
+import pg
+
+# step 1.  Create file _stop_animation_cache from gtfs schema
+
+db = 'geo'
+hst = 'localhost'
+usr = 'gtfs'
+agency = 'CTA'
+schema = 'gtfs'
+con = pg.connect(dbname=db,host=hst,user=usr)
+
+# step 1 create animation cache table if needed
+
+try:
+  con.query(" create temporary sequence id; \
+  create table _stop_animation_cache as select nextval('id') as id, a.agency_id, a.arrival_time, \
+  substring(arrival_time from E'^([^:]+):')::int * 60 * 60 + substring(arrival_time from E'^[^:]+:([^:]+):')::int * 60 + substring(arrival_time from E':([^:]+)$')::int as seconds_from_midnight, \
+  substring(arrival_time from E'^([^:]+):')::int * 60 + substring(arrival_time from E'^[^:]+:([^:]+):')::int as minutes_from_midnight, \
+  c.route_short_name, d.description, e.stop_name, e.stop_lat, e.stop_lon, \
+  a.agency_id||d.description as color_code, \
+  e.the_geom from stop_times a join trips b using (agency_id,trip_id) join routes c using (agency_id,route_id) join route_types d using (route_type) join stops e using (agency_id,stop_id); \
+  ")
+
+  con.query("\
+  CREATE INDEX _min_idx ON _stop_animation_cache USING btree (minutes_from_midnight);\
+  CREATE INDEX _sec_idx ON _stop_animation_cache USING btree (seconds_from_midnight);\
+  CREATE INDEX _time_idx ON _stop_animation_cache USING btree (arrival_time);\
+  ALTER TABLE _stop_animation_cache ADD PRIMARY KEY (id);\
+  ")
+except pg.ProgrammingError:
+  pass
+
+# step 2 create shapefiles in ./shapefiles directory
+
+minutes = con.query("select max(minutes_from_midnight) from _stop_animation_cache;").getresult()[0][0]
+os.system("mkdir shapefiles")
+for i in range(0,minutes):
+  try:
+    con.query("drop table anim_tmp;")
+  except pg.ProgrammingError:
+    pass
+  con.query("create table anim_tmp as select * from _stop_animation_cache where minutes_from_midnight = %s" % i)
+  os.system("pgsql2shp -f ./shapefiles/anim_%s -u %s %s %s.anim_tmp" % (i,usr,db,schema))
+  
+# step 3 use mapnik to make images in ./images directory.  Right now this has to be custom edited on a per-agency basis.
+
+os.system('mkdir images')
 
 # create a map
 
@@ -75,10 +122,10 @@ base_lyr.styles.append('Base Counties')
 
 
 # new layer
-for i in range(1,1821):
+for i in range(1,minutes):
   
   f_in = "./shapefiles/anim_%s.shp" % i
-  f_out = "%04d.png" % i
+  f_out = "./images/%04d.png" % i
   try:
     m.append_style('SF Metro',s)
     m.append_style('Base Counties',s_base)  
@@ -99,3 +146,6 @@ for i in range(1,1821):
   except RuntimeError:
     print "No shapefile %s." % f_in
     pass
+  
+
+
