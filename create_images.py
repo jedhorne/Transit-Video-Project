@@ -104,14 +104,6 @@ s.rules.append(r3)
 s_base.rules.append(r_base)
 m.append_style('Base Counties',s_base)
 
-base_lyrs = []
-counter = 0
-for i in os.listdir("../county_base/"+agency):
-  if fnmatch.fnmatch(i,"*.shp"):
-    base_lyrs.append(mapnik.Layer('base',"+proj=latlong +datum=WGS84"))
-    base_lyrs[counter].datasource = mapnik.Shapefile(file="../county_base/%s/%s" % (agency,i))
-    base_lyrs[counter].styles.append('Base Counties')
-    counter=counter+1
 
 # new layer
 for i in os.listdir("../shapefiles/"+agency):
@@ -120,15 +112,19 @@ for i in os.listdir("../shapefiles/"+agency):
     f_in = "../shapefiles/"+agency+"/%s" % i
     f_out = "../images/"+agency+"/%04d.png" % int(i.split(".")[0])
     try:
+      for i in os.listdir("../county_base/"+agency):
+        if fnmatch.fnmatch(i,"*.shp"):
+          base_lyr = mapnik.Layer('base',"+proj=latlong +datum=WGS84")
+          base_lyr.datasource = mapnik.Shapefile(file="../county_base/%s/%s" % (agency,i))
+          base_lyr.styles.append('Base Counties')
+          m.layers.append(base_lyr)
       m.append_style('CHT',s)
       m.append_style('Base Counties',s_base)  
       lyr = mapnik.Layer('CHT',"+proj=latlong +datum=WGS84")
       lyr.datasource = mapnik.Shapefile(file=f_in) 
       lyr.styles.append('CHT')
       #lyr.title="%s" % i
-      for lyr in base_lyrs:
-        m.layers.append(lyr)
-    
+
       #print lyr.envelope()
       m.zoom_to_box(mapnik.Envelope(ext[0][0]-.001, ext[0][2]-.001, ext[0][1]+.001, ext[0][3]+.001))
       mapnik.render_to_file(m,f_out, 'png')
