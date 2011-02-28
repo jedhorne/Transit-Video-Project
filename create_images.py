@@ -16,7 +16,7 @@ schema = 'gtfs'
 con = pg.connect(dbname=db,host=hst,user=usr)
 
 # step 1 create animation cache table if needed
-
+"""
 try:
   con.query(" create temporary sequence id; \
   create table _stop_animation_cache as select nextval('id') as id, a._agency_id, a.arrival_time, \
@@ -34,13 +34,13 @@ try:
   ALTER TABLE _stop_animation_cache ADD PRIMARY KEY (id);\
   ")
 except pg.ProgrammingError:
-  pass
+  pass"""
   
 #get extents
 ext=con.query('select max(st_x(the_geom)),min(st_x(the_geom)),max(st_y(the_geom)),min(st_y(the_geom)) from _stop_animation_cache;').getresult()
 
 # step 2 create shapefiles in ./shapefiles directory
-
+"""
 os.system("rm -rf ../shapefiles/"+agency)
 os.system("mkdir ../shapefiles/"+agency)
 for i in con.query("select distinct minutes_from_midnight from _stop_animation_cache order by minutes_from_midnight;").getresult():
@@ -49,7 +49,7 @@ for i in con.query("select distinct minutes_from_midnight from _stop_animation_c
   except pg.ProgrammingError:
     pass
   con.query("create table anim_tmp as select * from _stop_animation_cache where minutes_from_midnight = %s" % i[0])
-  os.system("pgsql2shp -f ../shapefiles/%s/%s -u %s %s %s.anim_tmp" % (agency,i[0],usr,db,schema))
+  os.system("pgsql2shp -f ../shapefiles/%s/%s -u %s %s %s.anim_tmp" % (agency,i[0],usr,db,schema))"""
   
 # step 3 use mapnik to make images in ./images directory.  Right now this has to be custom edited on a per-agency basis.
 
@@ -123,6 +123,7 @@ for i in os.listdir("../shapefiles/"+agency):
       lyr = mapnik.Layer('CHT',"+proj=latlong +datum=WGS84")
       lyr.datasource = mapnik.Shapefile(file=f_in) 
       lyr.styles.append('CHT')
+      m.layers.append(lyr)
       #lyr.title="%s" % i
 
       #print lyr.envelope()
